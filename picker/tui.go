@@ -12,7 +12,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/sahilm/fuzzy"
 
 	"github.com/Wingsdh/cc-sesh/v2/icon"
 	"github.com/Wingsdh/cc-sesh/v2/model"
@@ -26,11 +25,8 @@ type sessionItem struct {
 	decoration Decoration
 }
 
-// sessionItems 实现 fuzzy.Source，让 fuzzy 匹配只看 searchName。
+// sessionItems 是 picker 的候选列表；模糊匹配只看 searchName（见 match.go）。
 type sessionItems []sessionItem
-
-func (s sessionItems) String(i int) string { return s[i].searchName }
-func (s sessionItems) Len() int            { return len(s) }
 
 type filteredItem struct {
 	item           sessionItem
@@ -499,15 +495,15 @@ func (m *Model) applyFilter() {
 			searchPat = normalizeSeparators(pattern)
 		}
 
-		matches := fuzzy.FindFrom(searchPat, m.allItems)
+		matches := fuzzyFind(searchPat, m.allItems.searchNames())
 		m.filtered = make([]filteredItem, 0, len(matches))
 		posByName := make(map[string]int, len(matches))
 		for _, match := range matches {
-			it := m.allItems[match.Index]
+			it := m.allItems[match.index]
 			posByName[it.name] = len(m.filtered)
 			m.filtered = append(m.filtered, filteredItem{
 				item:           it,
-				matchedIndexes: match.MatchedIndexes,
+				matchedIndexes: match.positions,
 			})
 		}
 
@@ -551,7 +547,7 @@ func (m *Model) applyFilter() {
 
 // matchWindowNames 对一个 session 的全部 window 名做 fuzzy，返回命中项（按 Index 升序）。
 func matchWindowNames(searchPat string, wins []WindowItem, separatorAware bool) []windowMatch {
-	names := make(windowNames, len(wins))
+	names := make([]string, len(wins))
 	for i, w := range wins {
 		n := w.Name
 		if separatorAware {
@@ -559,26 +555,20 @@ func matchWindowNames(searchPat string, wins []WindowItem, separatorAware bool) 
 		}
 		names[i] = n
 	}
-	found := fuzzy.FindFrom(searchPat, names)
+	found := fuzzyFind(searchPat, names)
 	if len(found) == 0 {
 		return nil
 	}
 	out := make([]windowMatch, 0, len(found))
 	for _, f := range found {
 		out = append(out, windowMatch{
-			window:         wins[f.Index],
-			matchedIndexes: f.MatchedIndexes,
+			window:         wins[f.index],
+			matchedIndexes: f.positions,
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].window.Index < out[j].window.Index })
 	return out
 }
-
-// windowNames 实现 fuzzy.Source，让 window 名参与与 session 名同款的模糊匹配。
-type windowNames []string
-
-func (w windowNames) String(i int) string { return w[i] }
-func (w windowNames) Len() int            { return len(w) }
 
 // groupWindowsBySession 把全量 window 清单按所属 session 分组，组内按 Index 升序。
 // 排序放在这里做一次，后续 buildVisibleRows 就不用每帧重排。
