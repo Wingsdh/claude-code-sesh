@@ -1,7 +1,7 @@
 <h1 align="center">cc-sesh</h1>
 
 <p align="center">
-  <em>Mission control for parallel Claude Code agents — see every Claude instance's live status right inside the picker.</em>
+  <em>Mission control for Claude Code and Codex in tmux — see live agent status right inside the picker.</em>
 </p>
 
 <p align="center">
@@ -29,10 +29,10 @@
 
 Running Claude Code in multiple tmux sessions in parallel is great — until you realize sesh's picker only shows session **names**, not what each Claude is actually **doing**. You end up attaching into every session one by one just to find out: did the refactor finish? Is anyone blocked on a permission prompt? Who's still thinking?
 
-cc-sesh layers a Claude status display on top of sesh's picker, so you can tell at a glance:
+cc-sesh layers Claude Code and Codex status on top of sesh's picker, so you can tell at a glance:
 
-- **how many Claude instances** live in each session and **what each is doing** — idle, running, or waiting on OAuth
-- a **sticky `ATTN` reminder** when any Claude finishes a round of work, so you never miss a "done"
+- **how many Claude Code and Codex instances** live in each session and whether they are idle or running; Claude Code also reports input prompts
+- a **sticky `ATTN` reminder** when an agent finishes a round of work, so you never miss a "done"
 - everything upstream sesh already does — tmux + zoxide + configs + tmuxinator, naming, configuration — kept intact
 
 ## Table of Contents
@@ -193,7 +193,7 @@ The config file lives at `~/.config/cc-sesh/sesh.toml`. **The schema is identica
 
 For configuration syntax and examples, see the [upstream Configuration section](https://github.com/joshmedeski/sesh#configuration).
 
-cc-sesh adds **no new configuration keys** — the Claude integration is zero-config and intentionally not configurable.
+cc-sesh adds **no new configuration keys**. Codex CLI instances running inside tmux are found through the pane's process tree; their run/idle status comes from Codex rollout files under `$CODEX_HOME/sessions` (default `~/.codex/sessions`). Codex approval prompts do not currently have a distinct `WAIT` state.
 
 ## Credits & license
 
