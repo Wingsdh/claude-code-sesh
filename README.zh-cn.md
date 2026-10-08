@@ -1,7 +1,7 @@
 <h1 align="center">cc-sesh</h1>
 
 <p align="center">
-  <em>Claude Code 多会话调度台 —— 在 picker 里看见每个 tmux session 内的 Claude 实时状态。</em>
+  <em>Claude Code 与 Codex 多会话调度台 —— 在 picker 里看见 tmux session 内的 Agent 实时状态。</em>
 </p>
 
 <p align="center">
@@ -29,10 +29,10 @@
 
 在多个 tmux session 里并行跑 Claude Code 是个好习惯，但 sesh 的 picker 只显示 session **名字**，看不出每个 Claude 当前**在做什么**。结果你得挨个 attach 进去才能知道：那个 refactor 跑完了没？哪个卡在权限弹窗？谁还在思考？
 
-cc-sesh 在 sesh picker 上叠一层 Claude 状态，让你一眼看见：
+cc-sesh 在 sesh picker 上叠一层 Claude Code 与 Codex 状态，让你一眼看见：
 
-- 每个 session 里**有几个 Claude 实例**，分别**处于什么状态**——空闲、运行中、还是等 OAuth
-- 任何一个 Claude 跑完一轮活时打一个**粘性 ATTN 提醒**，保证你不会错过「完成」
+- 每个 session 里**有几个 Claude Code 或 Codex 实例**，分别是空闲还是运行中；Claude Code 还会显示等待输入
+- 任何一个 Agent 跑完一轮活时打一个**粘性 ATTN 提醒**，保证你不会错过「完成」
 - 上游 sesh 该干的都没动——tmux + zoxide + configs + tmuxinator、命名策略、配置体系全部原样保留
 
 ## 目录
@@ -189,7 +189,7 @@ source ~/.config/fish/config.fish
 
 配置写法请直接看 [上游 README 的 Configuration 一节](https://github.com/joshmedeski/sesh#configuration)。
 
-cc-sesh 本身**没有新增任何配置项** —— Claude 集成是开箱即用、不需要也不接受任何配置。
+cc-sesh 本身**没有新增任何配置项**。在 tmux 内运行的 Codex CLI 通过 pane 进程树定位，运行/空闲状态从 `$CODEX_HOME/sessions`（默认 `~/.codex/sessions`）中的 Codex rollout 文件读取。Codex 的审批提示目前没有独立的 `WAIT` 状态。
 
 ## 致谢与 License
 

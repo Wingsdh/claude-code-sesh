@@ -14,7 +14,7 @@ type Decoration struct {
 	Attention AttentionBadge
 }
 
-// LiveBadge 是该 session 当前实时的 Claude 状态聚合。Total=0 表示该 session 内没 Claude。
+// LiveBadge 是该 session 当前实时的 Claude Code / Codex 状态聚合。
 type LiveBadge struct {
 	Total    int
 	Busy     int

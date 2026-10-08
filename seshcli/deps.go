@@ -11,6 +11,7 @@ import (
 	"github.com/Wingsdh/cc-sesh/v2/claude/attention"
 	"github.com/Wingsdh/cc-sesh/v2/claude/live"
 	"github.com/Wingsdh/cc-sesh/v2/cloner"
+	codexlive "github.com/Wingsdh/cc-sesh/v2/codex/live"
 	"github.com/Wingsdh/cc-sesh/v2/configurator"
 	"github.com/Wingsdh/cc-sesh/v2/connector"
 	"github.com/Wingsdh/cc-sesh/v2/dir"
@@ -68,6 +69,7 @@ type Deps struct {
 	Previewer     previewer.Previewer
 	Cloner        cloner.Cloner
 	LiveReader    *live.Reader
+	CodexReader   codexStatusReader
 	Attention     *attention.Store
 	PickerUIState *uistate.Store
 }
@@ -137,6 +139,7 @@ func (b *BaseDeps) BuildAll(configPath string) (*Deps, error) {
 
 	homeDir, _ := b.Os.UserHomeDir()
 	lr := live.NewReader(homeDir, live.NewProcessChecker())
+	cr := codexlive.NewReader(homeDir)
 
 	attentionPath, err := attention.DefaultPath()
 	if err != nil {
@@ -167,6 +170,7 @@ func (b *BaseDeps) BuildAll(configPath string) (*Deps, error) {
 		Previewer:     p,
 		Cloner:        cl,
 		LiveReader:    lr,
+		CodexReader:   cr,
 		Attention:     att,
 		PickerUIState: pickerUI,
 	}, nil

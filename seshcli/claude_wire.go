@@ -11,6 +11,7 @@ import (
 
 	"github.com/Wingsdh/cc-sesh/v2/claude/attention"
 	"github.com/Wingsdh/cc-sesh/v2/claude/live"
+	codexlive "github.com/Wingsdh/cc-sesh/v2/codex/live"
 	"github.com/Wingsdh/cc-sesh/v2/lister"
 	"github.com/Wingsdh/cc-sesh/v2/model"
 	"github.com/Wingsdh/cc-sesh/v2/picker"
@@ -49,11 +50,8 @@ func makeClaudeFetcher(deps *Deps, listerOpts lister.ListOptions) picker.FetchFu
 		}
 
 		instances, instancesOk := readInstancesOrEmpty(deps.LiveReader)
-		var liveByName map[string]live.Status
-		liveOk := false
-		if instancesOk {
-			liveByName, liveOk = aggregateBySession(instances, deps.Tmux)
-		}
+		liveByName, aggregateOk := aggregateBySession(instances, deps.Tmux, deps.CodexReader)
+		liveOk := instancesOk && aggregateOk
 
 		flags := reconcileAttention(deps.Attention, deps.Tmux, sessions, liveByName, liveOk)
 
@@ -164,7 +162,11 @@ func readInstancesOrEmpty(r *live.Reader) (items []live.Instance, ok bool) {
 
 // aggregateBySession 返回 cwd→session 聚合后的状态，以及"聚合数据是否可信"。
 // 任何一步失败（tmux 不在 / ListAllPanes 失败）→ ok=false，调用方不应据此清 tracking。
-func aggregateBySession(instances []live.Instance, t tmux.Tmux) (map[string]live.Status, bool) {
+type codexStatusReader interface {
+	Read([]codexlive.Pane) (map[string]live.Status, error)
+}
+
+func aggregateBySession(instances []live.Instance, t tmux.Tmux, codexReader codexStatusReader) (map[string]live.Status, bool) {
 	if t == nil {
 		return nil, false
 	}
@@ -174,6 +176,7 @@ func aggregateBySession(instances []live.Instance, t tmux.Tmux) (map[string]live
 		return nil, false
 	}
 	paneInfos := make([]live.PaneInfo, 0, len(rawPanes))
+	codexPanes := make([]codexlive.Pane, 0, len(rawPanes))
 	for _, p := range rawPanes {
 		if p == nil {
 			continue
@@ -182,8 +185,33 @@ func aggregateBySession(instances []live.Instance, t tmux.Tmux) (map[string]live
 			SessionName: p.SessionName,
 			Cwd:         p.PaneCurrentPath,
 		})
+		codexPanes = append(codexPanes, codexlive.Pane{
+			SessionName: p.SessionName,
+			PID:         p.PanePID,
+			Cwd:         p.PaneCurrentPath,
+		})
 	}
-	return live.AggregateBySession(instances, paneInfos), true
+	combined := live.AggregateBySession(instances, paneInfos)
+	if codexReader != nil {
+		codexByName, err := codexReader.Read(codexPanes)
+		if err != nil {
+			slog.Warn("codex: live read failed", "error", err)
+			return combined, false
+		}
+		mergeLiveStatus(combined, codexByName)
+	}
+	return combined, true
+}
+
+func mergeLiveStatus(into, additional map[string]live.Status) {
+	for name, status := range additional {
+		current := into[name]
+		current.Total += status.Total
+		current.Busy += status.Busy
+		current.Subagent += status.Subagent
+		current.Needing += status.Needing
+		into[name] = current
+	}
 }
 
 // reconcileAttention 调度 live 数据 + tmux client 信息更新 attention store。
@@ -356,4 +384,3 @@ func (k *tmuxKiller) Kill(name string) error {
 	}
 	return nil
 }
-
