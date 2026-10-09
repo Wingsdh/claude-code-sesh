@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -112,4 +113,28 @@ func TestReadNoRolloutStillCountsLiveCodex(t *testing.T) {
 	got, err := r.Read([]Pane{{SessionName: "alpha", PID: 10, Cwd: "/work/project"}})
 	require.NoError(t, err)
 	require.Equal(t, claudelive.Status{Total: 1}, got["alpha"])
+}
+
+// Exercise real ps output: macOS truncates comm when it precedes lstart.
+func TestListProcessesPreservesExecutablePath(t *testing.T) {
+	executable, err := os.Executable()
+	require.NoError(t, err)
+	executable, err = filepath.EvalSymlinks(executable)
+	require.NoError(t, err)
+	processes, err := listProcesses()
+	require.NoError(t, err)
+	for _, p := range processes {
+		if p.pid == os.Getpid() {
+			if runtime.GOOS == "darwin" {
+				actual, err := filepath.EvalSymlinks(p.command)
+				require.NoError(t, err)
+				require.Equal(t, executable, actual)
+			} else {
+				require.Equal(t, filepath.Base(executable), filepath.Base(p.command))
+			}
+			require.False(t, p.started.IsZero())
+			return
+		}
+	}
+	t.Fatal("current process missing from ps snapshot")
 }

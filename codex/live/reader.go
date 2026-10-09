@@ -51,7 +51,7 @@ func NewReader(home string) *Reader {
 }
 
 func listProcesses() ([]process, error) {
-	out, err := exec.Command("ps", "-axo", "pid=,ppid=,comm=,lstart=").Output()
+	out, err := exec.Command("ps", "-axo", "pid=,ppid=,lstart=,comm=").Output()
 	if err != nil {
 		return nil, err
 	}
@@ -63,9 +63,9 @@ func listProcesses() ([]process, error) {
 		}
 		pid, e1 := strconv.Atoi(fields[0])
 		parent, e2 := strconv.Atoi(fields[1])
-		started, e3 := time.ParseInLocation("Mon Jan _2 15:04:05 2006", strings.Join(fields[3:], " "), time.Local)
+		started, e3 := time.ParseInLocation("Mon Jan _2 15:04:05 2006", strings.Join(fields[2:7], " "), time.Local)
 		if e1 == nil && e2 == nil && e3 == nil {
-			result = append(result, process{pid: pid, parent: parent, command: fields[2], started: started})
+			result = append(result, process{pid: pid, parent: parent, command: strings.Join(fields[7:], " "), started: started})
 		}
 	}
 	return result, nil
