@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -50,18 +51,25 @@ func makeClaudeFetcher(deps *Deps, listerOpts lister.ListOptions) picker.FetchFu
 		}
 
 		instances, instancesOk := readInstancesOrEmpty(deps.LiveReader)
-		liveByName, aggregateOk := aggregateBySession(instances, deps.Tmux, deps.CodexReader)
+		agentInfo := agentSnapshot{}
+		liveByName, aggregateOk := aggregateBySession(instances, deps.Tmux, deps.CodexReader, &agentInfo)
 		liveOk := instancesOk && aggregateOk
 
 		flags := reconcileAttention(deps.Attention, deps.Tmux, sessions, liveByName, liveOk)
 
+		agents, windowAgents := agentInfo.sessions, agentInfo.windows
+		windows := fetchWindowItems(mode, deps.Tmux)
+		for i := range windows {
+			windows[i].Agents = windowAgents[windowAgentKey(windows[i].SessionName, windows[i].Index)]
+		}
 		return picker.FetchResult{
 			Sessions: sessions,
 			Decorator: &claudeDecorator{
 				liveByName: liveByName,
+				agents:     agents,
 				flags:      flags,
 			},
-			Windows: fetchWindowItems(mode, deps.Tmux),
+			Windows: windows,
 		}, nil
 	}
 }
@@ -166,7 +174,7 @@ type codexStatusReader interface {
 	Read([]codexlive.Pane) (map[string]live.Status, error)
 }
 
-func aggregateBySession(instances []live.Instance, t tmux.Tmux, codexReader codexStatusReader) (map[string]live.Status, bool) {
+func aggregateBySession(instances []live.Instance, t tmux.Tmux, codexReader codexStatusReader, snapshots ...*agentSnapshot) (map[string]live.Status, bool) {
 	if t == nil {
 		return nil, false
 	}
@@ -186,20 +194,61 @@ func aggregateBySession(instances []live.Instance, t tmux.Tmux, codexReader code
 			Cwd:         p.PaneCurrentPath,
 		})
 		codexPanes = append(codexPanes, codexlive.Pane{
-			SessionName: p.SessionName,
+			SessionName: windowAgentKey(p.SessionName, p.WindowIndex),
 			PID:         p.PanePID,
 			Cwd:         p.PaneCurrentPath,
 		})
 	}
+
 	combined := live.AggregateBySession(instances, paneInfos)
+	info := agentSnapshot{sessions: map[string]picker.AgentBadge{}, windows: map[string]picker.AgentBadge{}}
+	parents := map[int]int{}
+	if len(instances) > 0 {
+		parents = processParents()
+	}
+	for _, p := range rawPanes {
+		if p == nil {
+			continue
+		}
+		badge := picker.AgentBadge{}
+		for _, it := range instances {
+			if isDescendant(it.PID, p.PanePID, parents) {
+				badge.CC = true
+				break
+			}
+		}
+		info.sessions[p.SessionName] = info.sessions[p.SessionName].Merge(badge)
+		key := windowAgentKey(p.SessionName, p.WindowIndex)
+		info.windows[key] = info.windows[key].Merge(badge)
+	}
 	if codexReader != nil {
-		codexByName, err := codexReader.Read(codexPanes)
+		// Key by window so one process snapshot supplies both window and session badges.
+		codexByWindow, err := codexReader.Read(codexPanes)
 		if err != nil {
 			slog.Warn("codex: live read failed", "error", err)
 			return combined, false
 		}
-		mergeLiveStatus(combined, codexByName)
+		seen := map[string]bool{}
+		for _, p := range rawPanes {
+			if p == nil {
+				continue
+			}
+			key := windowAgentKey(p.SessionName, p.WindowIndex)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			status := codexByWindow[key]
+			mergeLiveStatus(combined, map[string]live.Status{p.SessionName: status})
+			badge := picker.AgentBadge{CX: status.Total > 0}
+			info.sessions[p.SessionName] = info.sessions[p.SessionName].Merge(badge)
+			info.windows[key] = info.windows[key].Merge(badge)
+		}
 	}
+	for _, target := range snapshots {
+		*target = info
+	}
+
 	return combined, true
 }
 
@@ -279,6 +328,7 @@ func reconcileAttention(
 // 因为徽章语义是"这个 session 内有 Claude"，没 session 时贴徽章会与
 // 真实 tmux session 重复，且 attention 也无法被 attach 清除。
 type claudeDecorator struct {
+	agents     map[string]picker.AgentBadge
 	liveByName map[string]live.Status
 	flags      map[string]attention.Flag
 }
@@ -289,6 +339,7 @@ func (d *claudeDecorator) Decorate(s model.SeshSession) picker.Decoration {
 		return dec
 	}
 
+	dec.Agents = d.agents[s.Name]
 	if st, ok := d.liveByName[s.Name]; ok && st.Total > 0 {
 		dec.Live = picker.LiveBadge{
 			Total:    st.Total,
@@ -383,4 +434,34 @@ func (k *tmuxKiller) Kill(name string) error {
 		_ = k.attention.Ack(name)
 	}
 	return nil
+}
+
+func windowAgentKey(session string, index int) string { return fmt.Sprintf("%s:%d", session, index) }
+
+type agentSnapshot struct{ sessions, windows map[string]picker.AgentBadge }
+
+func processParents() map[int]int {
+	result := map[int]int{}
+	out, err := exec.Command("ps", "-axo", "pid=,ppid=").Output()
+	if err != nil {
+		return result
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		var pid, parent int
+		if _, err := fmt.Sscanf(line, "%d %d", &pid, &parent); err == nil {
+			result[pid] = parent
+		}
+	}
+	return result
+}
+func isDescendant(pid, pane int, parents map[int]int) bool {
+	seen := map[int]bool{}
+	for pid > 0 && !seen[pid] {
+		if pid == pane {
+			return true
+		}
+		seen[pid] = true
+		pid = parents[pid]
+	}
+	return false
 }

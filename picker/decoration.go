@@ -10,6 +10,7 @@ import (
 // 由调用方在 fetch 阶段构造（通常基于 claude/live + claude/attention 的查询），
 // picker 包本身不知道这些数据从哪来 —— 仅按字段渲染。
 type Decoration struct {
+	Agents    AgentBadge
 	Live      LiveBadge
 	Attention AttentionBadge
 }
@@ -49,3 +50,10 @@ type Decorator interface {
 type NoDecoration struct{}
 
 func (NoDecoration) Decorate(model.SeshSession) Decoration { return Decoration{} }
+
+// AgentBadge identifies the tools running in a session or window.
+type AgentBadge struct{ CC, CX bool }
+
+func (a AgentBadge) Merge(b AgentBadge) AgentBadge {
+	return AgentBadge{CC: a.CC || b.CC, CX: a.CX || b.CX}
+}
