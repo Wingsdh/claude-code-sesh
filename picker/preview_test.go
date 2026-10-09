@@ -170,7 +170,7 @@ func TestBadgeAlignment_ThreeRenderersShareSameStartColumn(t *testing.T) {
 	// Width(colNumWidth=4).Align(Center) 的 4 宽 cell 里居中渲染的既有代码（本 step
 	// 未改），1 个字符居中进 4 宽 cell 会在左侧垫 1 空格，所以「●」天然比块起点靠右 1 列，
 	// 这是居中对齐 cell 的正常形态，不是留白算错。改用会话名反推块起点：
-	// 块起点 = 会话名起始列位 - colsTotalWidth - badgeRightGap，两者都是无歧义的块边界。
+	// 块起点 = 会话名起始列位 - colsTotalWidth - badgeRightGap - agentColWidth，两者都是无歧义的块边界。
 	m := modelWithStateTable(t, true, true)
 
 	header := renderColumnHeaders(true)
@@ -180,7 +180,7 @@ func TestBadgeAlignment_ThreeRenderersShareSameStartColumn(t *testing.T) {
 
 	headerCol := stripAndFind(header, "ATTN")
 	tableTopCol := stripAndFind(tableTop, "─")
-	rowBlockStart := stripAndFind(row, "sessionname") - colsTotalWidth - badgeRightGap
+	rowBlockStart := stripAndFind(row, "sessionname") - colsTotalWidth - badgeRightGap - agentColWidth
 
 	require.NotEqual(t, -1, headerCol)
 	require.NotEqual(t, -1, tableTopCol)
@@ -199,7 +199,7 @@ func TestBadgeAlignment_LeftPadAndRightGapMeetBaselineAndAreConsistent(t *testin
 
 	nameCol := stripAndFind(row, "sessionname")
 	require.NotEqual(t, -1, nameCol)
-	rowBlockStart := nameCol - colsTotalWidth - badgeRightGap
+	rowBlockStart := nameCol - colsTotalWidth - badgeRightGap - agentColWidth
 
 	// showIcons=false 时 cursorPrefix(2) 之后立刻是徽章区，左内缩 = 块起点 - 2。
 	blockStartFromHeader := stripAndFind(header, "ATTN")
@@ -212,7 +212,7 @@ func TestBadgeAlignment_LeftPadAndRightGapMeetBaselineAndAreConsistent(t *testin
 	// 块起点必须取**列头实测**的那个，不能用 rowBlockStart——后者是拿 badgeRightGap
 	// 反推出来的，代入化简后 rightGap 会恒等于 badgeRightGap，成为一条永远为真的
 	// 重言式，生产代码把 badgeRightGap 换成字面量 1 也测不出来。
-	rightGap := nameCol - (blockStartFromHeader + colsTotalWidth)
+	rightGap := nameCol - (blockStartFromHeader + colsTotalWidth + agentColWidth)
 	assert.GreaterOrEqual(t, rightGap, 3, "右间隔应 >= 3 空格宽（原为 1）")
 }
 
@@ -318,7 +318,7 @@ func TestRenderWindowRow_IndentMatchesNameColStartPlusStep(t *testing.T) {
 				nameColStart += 2
 			}
 			if tc.tableVisible {
-				nameColStart += badgeLeftPad + colsTotalWidth + badgeRightGap
+				nameColStart += badgeLeftPad + colsTotalWidth + badgeRightGap + agentColWidth
 			}
 			wantIndent := 2 + nameColStart + windowIndentStep // 2 = 光标列
 

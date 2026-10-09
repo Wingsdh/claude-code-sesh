@@ -200,3 +200,5 @@ cc-sesh adds **no new configuration keys**. Codex CLI instances running inside t
 cc-sesh is built on top of [**joshmedeski/sesh**](https://github.com/joshmedeski/sesh). Every piece of session management — tmux / zoxide / tmuxinator integrations, naming strategies, the configuration system, the picker — was designed and polished by Josh Medeski and the upstream contributors over years. Without sesh, there is no cc-sesh. ❤️
 
 MIT, inheriting from upstream [sesh's LICENSE](LICENSE), copyright © 2023 Josh Medeski. Modifications by this fork are released under the same MIT license.
+
+The picker’s AGENT column identifies live tools: orange `cc` for Claude Code, cyan `cx` for Codex CLI, and `cc cx` when both run in the same session or window. Session state counts include both tools.

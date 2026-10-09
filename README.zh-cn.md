@@ -196,3 +196,5 @@ cc-sesh 本身**没有新增任何配置项**。在 tmux 内运行的 Codex CLI 
 cc-sesh 站在 [**joshmedeski/sesh**](https://github.com/joshmedeski/sesh) 的肩膀上。所有 session 管理 —— tmux / zoxide / tmuxinator 集成、命名策略、配置系统、picker —— 都是 Josh Medeski 与上游贡献者们多年打磨的成果。**没有 sesh，就没有 cc-sesh。** ❤️
 
 MIT，沿袭上游 [sesh 的 LICENSE](LICENSE)，版权署名 © 2023 Josh Medeski。本仓库新增部分同样以 MIT 发布。
+
+Picker 的 AGENT 列标识运行中的工具：橙色 `cc` 为 Claude Code，青色 `cx` 为 Codex CLI；同一 session 或 window 同时运行两者时显示 `cc cx`。Session 状态数字为两者合计。

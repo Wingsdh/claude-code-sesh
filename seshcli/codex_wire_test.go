@@ -1,6 +1,7 @@
 package seshcli
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,12 +21,12 @@ type changingCodexReader struct {
 }
 
 func (r *changingCodexReader) Read(panes []codexlive.Pane) (map[string]live.Status, error) {
-	if len(panes) != 1 || panes[0].PID != 100 || panes[0].SessionName != "alpha" {
+	if len(panes) != 1 || panes[0].PID != 100 || panes[0].SessionName != "alpha:0" {
 		return nil, nil
 	}
 	status := r.statuses[r.index]
 	r.index++
-	return map[string]live.Status{"alpha": status}, nil
+	return map[string]live.Status{"alpha:0": status}, nil
 }
 
 func TestMergeLiveStatusCombinesClaudeAndCodexForAttention(t *testing.T) {
@@ -56,6 +57,7 @@ func TestFetcherShowsCodexAndTriggersAttentionOnCompletion(t *testing.T) {
 	first, err := fetch(picker.ModeAll)
 	require.NoError(t, err)
 	assert.Equal(t, picker.LiveBadge{Total: 1, Busy: 1}, first.Decorator.Decorate(sessions.Directory["alpha"]).Live)
+	assert.Equal(t, picker.AgentBadge{CX: true}, first.Decorator.Decorate(sessions.Directory["alpha"]).Agents)
 	assert.False(t, first.Decorator.Decorate(sessions.Directory["alpha"]).Attention.Triggered)
 
 	second, err := fetch(picker.ModeAll)
@@ -65,4 +67,31 @@ func TestFetcherShowsCodexAndTriggersAttentionOnCompletion(t *testing.T) {
 
 	l.AssertExpectations(t)
 	tm.AssertExpectations(t)
+}
+
+func TestProcessAncestryForWindowBadges(t *testing.T) {
+	parents := map[int]int{30: 20, 20: 10, 10: 1, 40: 40}
+	assert.True(t, isDescendant(30, 10, parents))
+	assert.False(t, isDescendant(30, 11, parents))
+	assert.False(t, isDescendant(40, 10, parents))
+}
+
+type windowCodexReader struct{}
+
+func (windowCodexReader) Read(panes []codexlive.Pane) (map[string]live.Status, error) {
+	return map[string]live.Status{"mixed:2": {Total: 1, Busy: 1}}, nil
+}
+func TestMixedSessionKeepsWindowAgentIdentity(t *testing.T) {
+	tm := &tmux.MockTmux{}
+	tm.EXPECT().ListAllPanes().Return([]*model.TmuxPaneAcrossSessions{
+		{SessionName: "mixed", WindowIndex: 1, PanePID: os.Getppid(), PaneCurrentPath: "/project"},
+		{SessionName: "mixed", WindowIndex: 2, PanePID: 999999, PaneCurrentPath: "/project"},
+	}, nil).Once()
+	info := agentSnapshot{}
+	status, ok := aggregateBySession([]live.Instance{{PID: os.Getpid(), Cwd: "/project"}}, tm, windowCodexReader{}, &info)
+	require.True(t, ok)
+	assert.Equal(t, 1, status["mixed"].Busy)
+	assert.Equal(t, picker.AgentBadge{CC: true, CX: true}, info.sessions["mixed"])
+	assert.Equal(t, picker.AgentBadge{CC: true}, info.windows["mixed:1"])
+	assert.Equal(t, picker.AgentBadge{CX: true}, info.windows["mixed:2"])
 }

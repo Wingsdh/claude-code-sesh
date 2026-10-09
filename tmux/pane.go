@@ -76,6 +76,7 @@ func (t *RealTmux) ListAllPanes() ([]*model.TmuxPaneAcrossSessions, error) {
 		"#{pane_id}",
 		"#{pane_current_path}",
 		"#{pane_pid}",
+		"#{window_index}",
 	}, separator)
 	output, err := t.shell.ListCmd("tmux", "list-panes", "-a", "-F", format)
 	if err != nil {
@@ -84,10 +85,15 @@ func (t *RealTmux) ListAllPanes() ([]*model.TmuxPaneAcrossSessions, error) {
 	out := make([]*model.TmuxPaneAcrossSessions, 0, len(output))
 	for _, line := range output {
 		fields := strings.Split(line, separator)
-		if len(fields) != 4 {
+		if len(fields) != 4 && len(fields) != 5 {
 			continue
 		}
+		windowIndex := 0
+		if len(fields) == 5 {
+			windowIndex = convert.StringToInt(fields[4])
+		}
 		out = append(out, &model.TmuxPaneAcrossSessions{
+			WindowIndex:     windowIndex,
 			SessionName:     fields[0],
 			PaneID:          fields[1],
 			PaneCurrentPath: fields[2],

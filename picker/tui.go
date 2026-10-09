@@ -61,6 +61,7 @@ type visibleRow struct {
 // WindowItem 是 picker 渲染 window 行所需的最小信息，与 tmux 具体实现解耦
 // （同 Decoration 的做法）——picker 不知道这些数据是怎么来的，只按字段渲染。
 type WindowItem struct {
+	Agents      AgentBadge
 	SessionName string
 	Index       int
 	Name        string
@@ -1078,7 +1079,7 @@ func renderColumnHeaders(showIcons bool) string {
 		cell("ATTN", false) +
 		cell("IDLE", false) +
 		cell("RUN", false) +
-		cell("WAIT", true)
+		cell("WAIT", true) + strings.Repeat(" ", badgeRightGap) + lipgloss.NewStyle().Bold(true).Width(agentColWidth).Render("AGENT")
 }
 
 // renderRowCounts 渲染单行的 4 列徽章数字（19 字符宽）。
@@ -1155,7 +1156,7 @@ func (m Model) renderRow(fi filteredItem, isCursor bool) string {
 	// 3. ATTN/IDLE/RUN/WAIT 4 列徽章（19 字符）；隐藏状态表时整列省略，让 name 紧贴 src icon
 	var countsCol string
 	if m.showSessionStateTable() {
-		countsCol = strings.Repeat(" ", badgeLeftPad) + renderRowCounts(dec) + strings.Repeat(" ", badgeRightGap)
+		countsCol = strings.Repeat(" ", badgeLeftPad) + renderRowCounts(dec) + strings.Repeat(" ", badgeRightGap) + renderAgents(dec.Agents)
 	}
 
 	// 4. name 列（fuzzy 高亮）
@@ -1181,15 +1182,14 @@ func (m Model) nameColStart() int {
 		start += 2
 	}
 	if m.showSessionStateTable() {
-		start += badgeLeftPad + colsTotalWidth + badgeRightGap
+		start += badgeLeftPad + colsTotalWidth + badgeRightGap + agentColWidth
 	}
 	return start
 }
 
 // renderWindowRow 渲染一条 window 行：光标列 + 缩进 + "└ 序号: 名字"（活动 window 加标记）。
 //
-// NEVER 渲染 ATTN/IDLE/RUN/WAIT 任何字符，也 NEVER 用空白 cell 占位对齐——
-// 留空占位会与「没有 Claude 的 session 行」撞脸，用户分不清哪行是 window。
+// Window 行在 AGENT 列显示工具标识，正文用树形前缀区分 session 行。
 func (m Model) renderWindowRow(row visibleRow, isCursor bool) string {
 	cursorPrefix := "  "
 	if isCursor {
@@ -1197,6 +1197,9 @@ func (m Model) renderWindowRow(row visibleRow, isCursor bool) string {
 	}
 
 	indent := strings.Repeat(" ", m.nameColStart()+windowIndentStep)
+	if m.showSessionStateTable() {
+		indent = strings.Repeat(" ", m.nameColStart()-agentColWidth) + renderAgents(row.window.Agents) + strings.Repeat(" ", windowIndentStep)
+	}
 
 	// 搜索高亮与 session 名同款，走既有 highlightMatches
 	nameStyle := lipgloss.NewStyle()
@@ -1263,3 +1266,16 @@ func (m Model) Chosen() string { return m.chosen }
 func (m Model) Quit() bool     { return m.quit }
 func (m Model) LoadErr() error { return m.loadErr }
 func (m Model) Loading() bool  { return m.loading }
+
+const agentColWidth = 7
+
+func renderAgents(a AgentBadge) string {
+	labels := []string{}
+	if a.CC {
+		labels = append(labels, lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(208)).Bold(true).Render("cc"))
+	}
+	if a.CX {
+		labels = append(labels, lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(6)).Bold(true).Render("cx"))
+	}
+	return lipgloss.NewStyle().Width(agentColWidth).Render(strings.Join(labels, " "))
+}
