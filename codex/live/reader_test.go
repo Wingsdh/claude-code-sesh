@@ -138,3 +138,28 @@ func TestListProcessesPreservesExecutablePath(t *testing.T) {
 	}
 	t.Fatal("current process missing from ps snapshot")
 }
+
+func TestListProcessesWithNonCLocale(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("en_SG.UTF-8 is available by default on macOS")
+	}
+	for _, variable := range []string{"LANG", "LC_TIME", "LC_ALL"} {
+		t.Run(variable, func(t *testing.T) {
+			t.Setenv("LANG", "C")
+			t.Setenv("LC_TIME", "")
+			t.Setenv("LC_ALL", "")
+			t.Setenv(variable, "en_SG.UTF-8")
+
+			processes, err := listProcesses()
+			require.NoError(t, err)
+			require.Equal(t, "en_SG.UTF-8", os.Getenv(variable), "the parent locale must be preserved")
+			for _, p := range processes {
+				if p.pid == os.Getpid() {
+					require.False(t, p.started.IsZero())
+					return
+				}
+			}
+			t.Fatal("current process missing from ps snapshot under " + variable)
+		})
+	}
+}
