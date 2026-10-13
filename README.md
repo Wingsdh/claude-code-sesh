@@ -76,8 +76,8 @@ Append the block below to your `~/.tmux.conf` (or `$XDG_CONFIG_HOME/tmux/tmux.co
 
 ```tmux
 # === cc-sesh ===
-# prefix + t — open the picker as a popup
-bind-key "t" display-popup -E -w 80% -h 70% "cc-sesh picker -i"
+# prefix + t — open the picker as a borderless popup
+bind-key "t" display-popup -B -E -w 80% -h 70% "cc-sesh picker -i"
 
 # prefix + b — jump back to the previous session
 bind-key "b" run-shell "cc-sesh last"
@@ -92,7 +92,7 @@ Or as a one-liner, the whole thing:
 cat >> ~/.tmux.conf <<'EOF'
 
 # === cc-sesh ===
-bind-key "t" display-popup -E -w 80% -h 70% "cc-sesh picker -i"
+bind-key "t" display-popup -B -E -w 80% -h 70% "cc-sesh picker -i"
 bind-key "b" run-shell "cc-sesh last"
 set-option -g detach-on-destroy off
 EOF
@@ -201,4 +201,4 @@ cc-sesh is built on top of [**joshmedeski/sesh**](https://github.com/joshmedeski
 
 MIT, inheriting from upstream [sesh's LICENSE](LICENSE), copyright © 2023 Josh Medeski. Modifications by this fork are released under the same MIT license.
 
-The picker’s AGENT column identifies live tools: orange `cc` for Claude Code, cyan `cx` for Codex CLI, and `cc cx` when both run in the same session or window. Session state counts include both tools.
+The picker’s AGENT column identifies live tools: orange `cc` for Claude Code, blue (`#0285FF`) `cx` for Codex CLI, and `cc cx` when both run in the same session or window. Session state counts include both tools.

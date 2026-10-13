@@ -1275,7 +1275,7 @@ func renderAgents(a AgentBadge) string {
 		labels = append(labels, lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(208)).Bold(true).Render("cc"))
 	}
 	if a.CX {
-		labels = append(labels, lipgloss.NewStyle().Foreground(lipgloss.ANSIColor(6)).Bold(true).Render("cx"))
+		labels = append(labels, lipgloss.NewStyle().Foreground(lipgloss.Color("#0285FF")).Bold(true).Render("cx"))
 	}
 	return lipgloss.NewStyle().Width(agentColWidth).Render(strings.Join(labels, " "))
 }

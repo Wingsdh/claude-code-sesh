@@ -76,8 +76,8 @@ go install github.com/Wingsdh/cc-sesh/v2@latest
 
 ```tmux
 # === cc-sesh ===
-# prefix + t —— 弹出 picker
-bind-key "t" display-popup -E -w 80% -h 70% "cc-sesh picker -i"
+# prefix + t —— 无边框弹出 picker
+bind-key "t" display-popup -B -E -w 80% -h 70% "cc-sesh picker -i"
 
 # prefix + b —— 跳回上一个 session
 bind-key "b" run-shell "cc-sesh last"
@@ -92,7 +92,7 @@ set-option -g detach-on-destroy off
 cat >> ~/.tmux.conf <<'EOF'
 
 # === cc-sesh ===
-bind-key "t" display-popup -E -w 80% -h 70% "cc-sesh picker -i"
+bind-key "t" display-popup -B -E -w 80% -h 70% "cc-sesh picker -i"
 bind-key "b" run-shell "cc-sesh last"
 set-option -g detach-on-destroy off
 EOF
@@ -197,4 +197,4 @@ cc-sesh 站在 [**joshmedeski/sesh**](https://github.com/joshmedeski/sesh) 的�
 
 MIT，沿袭上游 [sesh 的 LICENSE](LICENSE)，版权署名 © 2023 Josh Medeski。本仓库新增部分同样以 MIT 发布。
 
-Picker 的 AGENT 列标识运行中的工具：橙色 `cc` 为 Claude Code，青色 `cx` 为 Codex CLI；同一 session 或 window 同时运行两者时显示 `cc cx`。Session 状态数字为两者合计。
+Picker 的 AGENT 列标识运行中的工具：橙色 `cc` 为 Claude Code，蓝色（`#0285FF`）`cx` 为 Codex CLI；同一 session 或 window 同时运行两者时显示 `cc cx`。Session 状态数字为两者合计。
