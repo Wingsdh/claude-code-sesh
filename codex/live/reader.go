@@ -51,7 +51,10 @@ func NewReader(home string) *Reader {
 }
 
 func listProcesses() ([]process, error) {
-	out, err := exec.Command("ps", "-axo", "pid=,ppid=,lstart=,comm=").Output()
+	cmd := exec.Command("ps", "-axo", "pid=,ppid=,lstart=,comm=")
+	// lstart must match the fixed English date layout regardless of the caller's locale.
+	cmd.Env = append(cmd.Environ(), "LC_ALL=C")
+	out, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
