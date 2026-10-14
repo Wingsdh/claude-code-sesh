@@ -183,16 +183,11 @@ func aggregateBySession(instances []live.Instance, t tmux.Tmux, codexReader code
 		slog.Warn("claude: list panes failed", "error", err)
 		return nil, false
 	}
-	paneInfos := make([]live.PaneInfo, 0, len(rawPanes))
 	codexPanes := make([]codexlive.Pane, 0, len(rawPanes))
 	for _, p := range rawPanes {
 		if p == nil {
 			continue
 		}
-		paneInfos = append(paneInfos, live.PaneInfo{
-			SessionName: p.SessionName,
-			Cwd:         p.PaneCurrentPath,
-		})
 		codexPanes = append(codexPanes, codexlive.Pane{
 			SessionName: windowAgentKey(p.SessionName, p.WindowIndex),
 			PID:         p.PanePID,
@@ -200,11 +195,31 @@ func aggregateBySession(instances []live.Instance, t tmux.Tmux, codexReader code
 		})
 	}
 
-	combined := live.AggregateBySession(instances, paneInfos)
+	combined := make(map[string]live.Status)
 	info := agentSnapshot{sessions: map[string]picker.AgentBadge{}, windows: map[string]picker.AgentBadge{}}
 	parents := map[int]int{}
 	if len(instances) > 0 {
 		parents = processParents()
+	}
+	// Shared directories do not imply shared ownership of a Claude process.
+	for _, it := range instances {
+		for _, p := range rawPanes {
+			if p == nil || !isDescendant(it.PID, p.PanePID, parents) {
+				continue
+			}
+			status := combined[p.SessionName]
+			status.Total++
+			switch it.Logical {
+			case live.LogicalBusy:
+				status.Busy++
+			case live.LogicalSubagent:
+				status.Subagent++
+			case live.LogicalNeedsInput:
+				status.Needing++
+			}
+			combined[p.SessionName] = status
+			break
+		}
 	}
 	for _, p := range rawPanes {
 		if p == nil {
@@ -299,7 +314,7 @@ func reconcileAttention(
 		// 只把"有 live cc 实例"的 session 写进 busyByName；
 		// cc 消失的 session 不写，Store 会清掉 tracking 不触发 flag。
 		st, ok := liveByName[s.Name]
-		if !ok {
+		if !ok || st.Total == 0 {
 			continue
 		}
 		// busy/subagent 算「在跑活」；needs-input 不算（用户拒绝/忽略不该算"完成"）
