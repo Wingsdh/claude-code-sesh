@@ -42,6 +42,37 @@
       "minimum": 1,
       "default": 1
     },
+    "name_substitution": {
+      "type": "array",
+      "description": "Find/replace rules that rewrite the home-collapsed path (leading ~) a session name is derived from, for zoxide results, directories and wildcards. Rules run in order, each on the previous rule's output; rules from imported files run after the main config's rules. When no rule changes the path, naming falls back to the git and directory strategies.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "find": {
+            "type": "string",
+            "description": "Text to look for; every occurrence is replaced. Matched literally unless regex is true. Must not be empty.",
+            "minLength": 1
+          },
+          "replace": {
+            "type": "string",
+            "description": "Text that find is replaced with. With regex enabled it may reference capture groups as $1, $2, and so on.",
+            "default": ""
+          },
+          "regex": {
+            "type": "boolean",
+            "description": "Treat find as a Go regular expression instead of a literal string",
+            "default": false
+          }
+        },
+        "required": ["find"],
+        "additionalProperties": false
+      }
+    },
+    "disable_git_namer": {
+      "type": "boolean",
+      "description": "Skip the git naming strategies and name sessions after their folder (honoring dir_length) instead of <repo>/<path>; name_substitution rules still run first",
+      "default": false
+    },
     "separator_aware": {
       "type": "boolean",
       "description": "Enable separator-aware configuration for the picker",

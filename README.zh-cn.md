@@ -185,11 +185,56 @@ source ~/.config/fish/config.fish
 
 ## 配置
 
-配置文件在 `~/.config/cc-sesh/sesh.toml`。**配置 schema 与上游 sesh 完全一致** —— `[default_session]` / `[[session]]` / `[[wildcard]]` / `[tui]` / `blacklist` / `dir_length` / `sort_order` / `cache` 等都原样可用。
+配置文件在 `~/.config/cc-sesh/sesh.toml`。**配置 schema 沿用上游 sesh** —— `[default_session]` / `[[session]]` / `[[wildcard]]` / `[tui]` / `blacklist` / `dir_length` / `sort_order` / `cache` 等都原样可用，另外还有下面几节介绍的命名配置。
 
 配置写法请直接看 [上游 README 的 Configuration 一节](https://github.com/joshmedeski/sesh#configuration)。
 
-cc-sesh 本身**没有新增任何配置项**。在 tmux 内运行的 Codex CLI 通过 pane 进程树定位，运行/空闲状态从 `$CODEX_HOME/sessions`（默认 `~/.codex/sessions`）中的 Codex rollout 文件读取。Codex 的审批提示目前没有独立的 `WAIT` 状态。
+除了 [`disable_git_namer`](#按文件夹名命名-session)，cc-sesh 本身**没有新增任何配置项**。在 tmux 内运行的 Codex CLI 通过 pane 进程树定位，运行/空闲状态从 `$CODEX_HOME/sessions`（默认 `~/.codex/sessions`）中的 Codex rollout 文件读取。Codex 的审批提示目前没有独立的 `WAIT` 状态。
+
+### session 名替换
+
+`[[name_substitution]]` 规则会改写用来生成 session 名的路径，用来去掉或改写又长又重复的前缀。比如 `~/Workspace/worktrees` 本身是 git 仓库时，它下面的每个目录都会被命名成 `worktrees/<dir>`。下面这条规则去掉这个前缀：
+
+```toml
+[[name_substitution]]
+find = "~/Workspace/worktrees/"
+replace = ""
+```
+
+这样连接 `~/Workspace/worktrees/nodemicro` 时，session 名就是 `nodemicro`。
+
+- **规则匹配的是 `~` 开头的路径。** 规则看到的是把 home 目录缩写成 `~` 之后的完整路径（`~/Workspace/worktrees/nodemicro`，而不是 `/Users/you/Workspace/...`），所以 `find` 里涉及 home 目录的部分要写成 `~`。规则对 zoxide 结果、直接连接的目录和 wildcard 配置生效；已经存在的 tmux session 名字不变。
+- **改写后的路径就是 session 名。** 规则跑完剩下的内容整体作为 session 名，`dir_length` 对它不生效。和其他 session 名一样，`.` 和 `:` 会变成 `_`，连续的空白会变成一个 `_`。
+- **默认按字面匹配。** `find` 当普通文本匹配，所有出现的地方都会被替换，所以 `find` 里的 `.` 只匹配点号本身。
+- **正则和捕获组。** 设置 `regex = true` 后，`find` 按 [Go 正则表达式](https://pkg.go.dev/regexp/syntax) 解析。每处匹配都会被替换，`replace` 里可以用 `$1`、`$2` 等引用捕获组。
+- **规则按顺序叠加。** 规则从上到下执行，每条规则处理的是上一条规则的输出。`import` 引入的文件里的规则排在主配置的规则之后，按 import 的顺序执行。
+
+两种模式组合使用：先用字面规则去掉前缀，再用正则规则把编号挪到末尾：
+
+```toml
+[[name_substitution]]
+find = "~/Workspace/worktrees/"
+replace = ""
+
+[[name_substitution]]
+find = "^([0-9]+)_(.*)$"
+replace = "$2-$1"
+regex = true
+```
+
+`~/Workspace/worktrees/12_nodemicro` → `12_nodemicro` → `nodemicro-12`。如果把两条规则对调，这条带 `^` 锚点的正则看到的是完整的 `~/Workspace/...` 路径，就匹配不上了。
+
+如果没有任何规则改动路径，或者改写后没剩下能用的内容（比如只剩空白），就回退到原来的 git 和文件夹命名策略。取不到 home 目录时也会这样回退。`find` 为空的规则、或者 `regex = true` 但正则写错的规则，在加载配置时就会报错，import 进来的文件里的规则也一样。
+
+### 按文件夹名命名 session
+
+默认情况下，git 仓库里的目录会被命名成 `<仓库名>/<仓库内路径>`，所以 `~/Workspace/worktrees` 是仓库时，`~/Workspace/worktrees/nodemicro` 会被命名成 `worktrees/nodemicro`。设置 `disable_git_namer` 后会跳过 git 命名策略，直接用文件夹名：
+
+```toml
+disable_git_namer = true
+```
+
+这样 `~/Workspace/worktrees/nodemicro` 的 session 名就是 `nodemicro`，`cc-sesh root` 输出的也是文件夹名，不再往上找 git 根目录。`[[name_substitution]]` 规则仍然最先执行，`dir_length` 也仍然决定名字取末尾几级文件夹。默认值为 `false`。这个配置项是 cc-sesh 自己加的，上游 sesh 没有。
 
 ## 致谢与 License
 

@@ -189,11 +189,56 @@ source ~/.config/fish/config.fish
 
 ## Configuration
 
-The config file lives at `~/.config/cc-sesh/sesh.toml`. **The schema is identical to upstream sesh** — `[default_session]` / `[[session]]` / `[[wildcard]]` / `[tui]` / `blacklist` / `dir_length` / `sort_order` / `cache`, all of it works as-is.
+The config file lives at `~/.config/cc-sesh/sesh.toml`. **The schema is upstream sesh's** — `[default_session]` / `[[session]]` / `[[wildcard]]` / `[tui]` / `blacklist` / `dir_length` / `sort_order` / `cache`, all of it works as-is — plus the naming options described below.
 
 For configuration syntax and examples, see the [upstream Configuration section](https://github.com/joshmedeski/sesh#configuration).
 
-cc-sesh adds **no new configuration keys**. Codex CLI instances running inside tmux are found through the pane's process tree; their run/idle status comes from Codex rollout files under `$CODEX_HOME/sessions` (default `~/.codex/sessions`). Codex approval prompts do not currently have a distinct `WAIT` state.
+Apart from [`disable_git_namer`](#folder-only-session-names), cc-sesh adds **no new configuration keys**. Codex CLI instances running inside tmux are found through the pane's process tree; their run/idle status comes from Codex rollout files under `$CODEX_HOME/sessions` (default `~/.codex/sessions`). Codex approval prompts do not currently have a distinct `WAIT` state.
+
+### Session name substitution
+
+`[[name_substitution]]` rules rewrite the path a session name is derived from, so a long or repetitive prefix can be dropped or relabeled. For example, if `~/Workspace/worktrees` is itself a git repo, every directory under it is named `worktrees/<dir>`. This rule drops the prefix:
+
+```toml
+[[name_substitution]]
+find = "~/Workspace/worktrees/"
+replace = ""
+```
+
+Connecting to `~/Workspace/worktrees/nodemicro` now creates a session named `nodemicro`.
+
+- **Rules match the `~` path.** Each rule sees the full path with your home directory collapsed to `~` (`~/Workspace/worktrees/nodemicro`, not `/Users/you/Workspace/...`), so write the home part of `find` as `~`. Rules apply to zoxide results, directories you connect to, and wildcard configs. Existing tmux sessions keep their names.
+- **The rewritten path is the name.** Whatever is left after the rules becomes the session name in full, and `dir_length` doesn't apply to it. As with any session name, `.` and `:` become `_`, and each run of whitespace becomes a single `_`.
+- **Literal by default.** `find` is matched as plain text and every occurrence is replaced, so a `.` in `find` matches only a dot.
+- **Regex and capture groups.** Set `regex = true` to treat `find` as a [Go regular expression](https://pkg.go.dev/regexp/syntax). Every match is replaced, and `replace` can reference capture groups as `$1`, `$2`, and so on.
+- **Rules run in order.** Rules run top to bottom, and each rule works on the previous rule's output. Rules from files listed in `import` run after the main config's rules, in import order.
+
+Combining the two modes, the literal rule strips the prefix and the regex rule then moves a ticket number to the end:
+
+```toml
+[[name_substitution]]
+find = "~/Workspace/worktrees/"
+replace = ""
+
+[[name_substitution]]
+find = "^([0-9]+)_(.*)$"
+replace = "$2-$1"
+regex = true
+```
+
+`~/Workspace/worktrees/12_nodemicro` → `12_nodemicro` → `nodemicro-12`. Swap the two rules and the anchored regex no longer matches, because it sees the full `~/Workspace/...` path.
+
+If no rule changes the path, or the result is left with nothing usable (for example only whitespace), naming falls back to the usual git and directory strategies. That's also what happens if the home directory can't be resolved. A rule with an empty `find`, or a `regex = true` rule whose pattern doesn't compile, is rejected when the config loads, including rules in imported files.
+
+### Folder-only session names
+
+By default, a directory inside a git repo is named `<repo>/<path inside the repo>`, so `~/Workspace/worktrees/nodemicro` becomes `worktrees/nodemicro` when `~/Workspace/worktrees` is a repo. Set `disable_git_namer` to name sessions after their folder and skip the git strategies:
+
+```toml
+disable_git_namer = true
+```
+
+With this, `~/Workspace/worktrees/nodemicro` is named `nodemicro`, and `cc-sesh root` prints the folder name too, instead of walking up to the git root. `[[name_substitution]]` rules still run first, and `dir_length` still sets how many trailing folders go into the name. Defaults to `false`. This option is specific to cc-sesh; upstream sesh doesn't have it.
 
 ## Credits & license
 
