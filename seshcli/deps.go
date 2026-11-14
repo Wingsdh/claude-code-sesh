@@ -88,7 +88,7 @@ func NewBaseDeps() *BaseDeps {
 
 	g := git.NewGit(sh)
 	d := dir.NewDir(os, g, path)
-	z := zoxide.NewZoxide(sh)
+	z := zoxide.NewZoxide(sh, model.FrecencyConfig{})
 	ti := tmuxinator.NewTmuxinator(sh)
 
 	return &BaseDeps{
@@ -116,10 +116,16 @@ func (b *BaseDeps) BuildAll(configPath string) (*Deps, error) {
 
 	slog.Debug("deps: BuildAll", "config", config)
 
+	// The frecency backend's commands come from [frecency], so rebuild it
+	// now that config is loaded. NewBaseDeps keeps the zoxide defaults for
+	// commands that never load config.
+	base := *b
+	base.Zoxide = zoxide.NewZoxide(b.Shell, config.Frecency)
+
 	t := tmux.NewTmux(b.Os, b.Shell, config.TmuxCommand)
 
 	l := ls.NewLs(config, b.Shell)
-	li := lister.NewLister(config, b.Home, t, b.Zoxide, b.Tmuxinator)
+	li := lister.NewLister(config, b.Home, t, base.Zoxide, b.Tmuxinator)
 
 	var usedLister lister.Lister = li
 	var cachedLi *lister.CachingLister
@@ -131,7 +137,7 @@ func (b *BaseDeps) BuildAll(configPath string) (*Deps, error) {
 
 	s := startup.NewStartup(b.Os, config, usedLister, t, b.Home, b.Replacer)
 	n := namer.NewNamer(b.Path, b.Git, b.Home, config)
-	c := connector.NewConnector(config, b.Dir, b.Home, usedLister, n, s, t, b.Zoxide, b.Tmuxinator)
+	c := connector.NewConnector(config, b.Dir, b.Home, usedLister, n, s, t, base.Zoxide, b.Tmuxinator)
 	ic := icon.NewIcon(config)
 	p := previewer.NewPreviewer(usedLister, t, ic, b.Dir, b.Home, l, config, b.Shell)
 	cl := cloner.NewCloner(c, b.Git)
@@ -157,7 +163,7 @@ func (b *BaseDeps) BuildAll(configPath string) (*Deps, error) {
 	}
 
 	return &Deps{
-		BaseDeps:      *b,
+		BaseDeps:      base,
 		Config:        config,
 		Tmux:          t,
 		Lister:        usedLister,

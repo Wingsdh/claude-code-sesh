@@ -15,6 +15,7 @@ type (
 		SeparatorAware       bool                 `toml:"separator_aware"`
 		TmuxCommand          string               `toml:"tmux_command"`
 		TUI                  TUIConfig            `toml:"tui"`
+		Frecency             FrecencyConfig       `toml:"frecency"`
 	}
 	Evaluation struct {
 		StrictMode bool `toml:"strict_mode"`
@@ -48,6 +49,21 @@ type (
 		ShowIcons   bool   `toml:"show_icons"`
 		Prompt      string `toml:"prompt"`
 		Placeholder string `toml:"placeholder"`
+	}
+
+	// FrecencyConfig overrides the commands sesh runs against its frecency
+	// backend (zoxide by default). Empty fields keep the zoxide defaults.
+	FrecencyConfig struct {
+		// ListCommand enumerates all tracked entries, one path per line,
+		// optionally prefixed with a numeric score.
+		ListCommand string `toml:"list_command"`
+		// QueryCommand resolves a single input to a path; `{}` is replaced
+		// with the query.
+		QueryCommand string `toml:"query_command"`
+		// AddCommand records a path after connecting; `{}` is the path.
+		AddCommand string `toml:"add_command"`
+		// RemoveCommand drops a path from the backend; `{}` is the path.
+		RemoveCommand string `toml:"remove_command"`
 	}
 
 	WildcardConfig struct {
