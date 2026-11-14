@@ -109,6 +109,7 @@ func (c *RealConfigurator) resolveImports(config *model.Config, homeDir string) 
 		config.SessionConfigs = append(config.SessionConfigs, importConfig.SessionConfigs...)
 		config.WindowConfigs = append(config.WindowConfigs, importConfig.WindowConfigs...)
 		config.WildcardConfigs = append(config.WildcardConfigs, importConfig.WildcardConfigs...)
+		config.NameSubstitutions = append(config.NameSubstitutions, importConfig.NameSubstitutions...)
 	}
 	return nil
 }
