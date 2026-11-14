@@ -124,6 +124,18 @@ func (c *RealConfigurator) applyDefaults(config *model.Config) {
 	}
 }
 
+// validateNameSubstitutions rejects rules that can't be applied so the user
+// hears about a bad rule at load time instead of getting silently ignored
+// naming later. A rule needs something to look for.
+func validateNameSubstitutions(config *model.Config) error {
+	for i, rule := range config.NameSubstitutions {
+		if rule.Find == "" {
+			return fmt.Errorf("name_substitution rule %d has an empty find", i+1)
+		}
+	}
+	return nil
+}
+
 func (c *RealConfigurator) getConfigFileFromPath(configPath string) (model.Config, error) {
 	file, err := c.os.ReadFile(configPath)
 	if err != nil {
@@ -145,6 +157,9 @@ func (c *RealConfigurator) getConfigFileFromPath(configPath string) (model.Confi
 	}
 
 	c.applyDefaults(&config)
+	if err := validateNameSubstitutions(&config); err != nil {
+		return config, err
+	}
 	return config, nil
 }
 
@@ -177,6 +192,9 @@ func (c *RealConfigurator) getConfigFileFromUserConfigDir() (model.Config, error
 	}
 
 	c.applyDefaults(&config)
+	if err := validateNameSubstitutions(&config); err != nil {
+		return config, err
+	}
 	return config, nil
 }
 
