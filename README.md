@@ -210,7 +210,7 @@ Connecting to `~/Workspace/worktrees/nodemicro` now creates a session named `nod
 - **Rules match the `~` path.** Each rule sees the full path with your home directory collapsed to `~` (`~/Workspace/worktrees/nodemicro`, not `/Users/you/Workspace/...`), so write the home part of `find` as `~`. Rules apply to zoxide results, directories you connect to, and wildcard configs. Existing tmux sessions keep their names.
 - **The rewritten path is the name.** Whatever is left after the rules becomes the session name in full, and `dir_length` doesn't apply to it. As with any session name, `.` and `:` become `_`, and each run of whitespace becomes a single `_`.
 - **Literal by default.** `find` is matched as plain text and every occurrence is replaced, so a `.` in `find` matches only a dot.
-- **Regex and capture groups.** Set `regex = true` to treat `find` as a [Go regular expression](https://pkg.go.dev/regexp/syntax). Every match is replaced, and `replace` can reference capture groups as `$1`, `$2`, and so on.
+- **Regex and capture groups.** Set `regex = true` to treat `find` as a [Go regular expression](https://pkg.go.dev/regexp/syntax). Every match is replaced, and `replace` can reference capture groups as `$1`, `$2`, and so on. When a reference is followed by a letter, digit or underscore, wrap it in braces (`${1}_x`, not `$1_x`): Go would otherwise read `$1_x` as a group named `1_x` and expand it to nothing.
 - **Rules run in order.** Rules run top to bottom, and each rule works on the previous rule's output. Rules from files listed in `import` run after the main config's rules, in import order.
 
 Combining the two modes, the literal rule strips the prefix and the regex rule then moves a ticket number to the end:
