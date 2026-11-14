@@ -67,8 +67,16 @@ func gitName(n *RealNamer, path string) (string, error) {
 		return "", nil
 	}
 	repoName := n.pathwrap.Base(rootPath)
-	relativePath := strings.TrimPrefix(path, rootPath)
-	return repoName + relativePath, nil
+	if relativePath, ok := pathUnder(path, rootPath); ok {
+		return repoName + relativePath, nil
+	}
+	// Linked worktree living outside the main tree (e.g. a bare repo at
+	// .repos/x with worktrees elsewhere): name relative to the worktree itself.
+	_, topLevel, _ := n.git.ShowTopLevel(path)
+	if relativePath, ok := pathUnder(path, topLevel); ok && topLevel != "" {
+		return n.pathwrap.Base(topLevel) + relativePath, nil
+	}
+	return repoName, nil
 }
 
 // Names the session root as <repoName>/<relativeWorktreePath> where the relative
@@ -87,6 +95,20 @@ func gitRootName(n *RealNamer, path string) (string, error) {
 	if topLevel == "" {
 		return repoName, nil
 	}
-	relativePath := strings.TrimPrefix(topLevel, rootPath)
-	return repoName + relativePath, nil
+	if relativePath, ok := pathUnder(topLevel, rootPath); ok {
+		return repoName + relativePath, nil
+	}
+	return n.pathwrap.Base(topLevel), nil
+}
+
+// pathUnder reports whether path equals root or lies beneath it, and returns
+// the remainder (empty or starting with "/").
+func pathUnder(path, root string) (string, bool) {
+	if path == root {
+		return "", true
+	}
+	if rest, ok := strings.CutPrefix(path, root); ok && strings.HasPrefix(rest, "/") {
+		return rest, true
+	}
+	return "", false
 }

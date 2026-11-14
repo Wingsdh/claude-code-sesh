@@ -114,6 +114,26 @@ func newNamer(t *testing.T) (*RealNamer, *pathwrap.MockPath, *git.MockGit) {
 }
 
 func TestGitName(t *testing.T) {
+	t.Run("bare repo, linked worktree outside repo dir", func(t *testing.T) {
+		n, mp, mg := newNamer(t)
+		path := "/Users/hansolo/Workspace/worktrees/proj/src"
+		list := `worktree /Users/hansolo/Workspace/.repos/local/proj
+bare
+
+worktree /Users/hansolo/Workspace/worktrees/proj
+HEAD bb976dcdc
+branch refs/heads/main
+`
+		mg.On("WorktreeList", path).Return(true, list, nil)
+		mg.On("ShowTopLevel", path).Return(true, "/Users/hansolo/Workspace/worktrees/proj", nil)
+		mp.On("Base", "/Users/hansolo/Workspace/.repos/local/proj").Return("proj").Maybe()
+		mp.On("Base", "/Users/hansolo/Workspace/worktrees/proj").Return("proj")
+
+		name, err := gitName(n, path)
+		assert.NoError(t, err)
+		assert.Equal(t, "proj/src", name)
+	})
+
 	t.Run("regular clone at main tree root", func(t *testing.T) {
 		n, mp, mg := newNamer(t)
 		path := "/Users/hansolo/code/project/nu"
@@ -236,6 +256,26 @@ branch refs/heads/main
 }
 
 func TestGitRootName(t *testing.T) {
+	t.Run("bare repo, linked worktree outside repo dir", func(t *testing.T) {
+		n, mp, mg := newNamer(t)
+		path := "/Users/hansolo/Workspace/worktrees/proj/src"
+		list := `worktree /Users/hansolo/Workspace/.repos/local/proj
+bare
+
+worktree /Users/hansolo/Workspace/worktrees/proj
+HEAD bb976dcdc
+branch refs/heads/main
+`
+		mg.On("WorktreeList", path).Return(true, list, nil)
+		mg.On("ShowTopLevel", path).Return(true, "/Users/hansolo/Workspace/worktrees/proj", nil)
+		mp.On("Base", "/Users/hansolo/Workspace/.repos/local/proj").Return("proj").Maybe()
+		mp.On("Base", "/Users/hansolo/Workspace/worktrees/proj").Return("proj")
+
+		name, err := gitRootName(n, path)
+		assert.NoError(t, err)
+		assert.Equal(t, "proj", name)
+	})
+
 	t.Run("regular clone, nested subdir collapses to repo root", func(t *testing.T) {
 		n, mp, mg := newNamer(t)
 		path := "/Users/hansolo/code/project/nu/server/subdir"
