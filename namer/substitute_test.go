@@ -337,3 +337,127 @@ func TestNameSubstitutionSkipsRuleWithInvalidRegex(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "nodemicro", name)
 }
+
+func TestNameSubstitutionThatLegalizesToEmptyFallsThrough(t *testing.T) {
+	gitList := `worktree /Users/josh/config/dotfiles
+HEAD abc123
+branch refs/heads/main
+`
+	// The rule turns the whole path into whitespace, which legalizes to an
+	// empty name, so the next strategy has to name the session instead.
+	blankOut := []model.NameSubstitution{{Find: `^.*$`, Replace: " \t ", Regex: true}}
+	config := model.Config{DirLength: 1, NameSubstitutions: blankOut}
+
+	t.Run("Name uses the git strategy", func(t *testing.T) {
+		path := "/Users/josh/config/dotfiles/nvim"
+		mockPathwrap := new(pathwrap.MockPath)
+		mockGit := new(git.MockGit)
+		mockHome := new(home.MockHome)
+		mockPathwrap.On("EvalSymlinks", path).Return(path, nil)
+		mockHome.On("ShortenHome", path).Return("~/config/dotfiles/nvim", nil)
+		mockGit.On("WorktreeList", path).Return(true, gitList, nil)
+		mockPathwrap.On("Base", "/Users/josh/config/dotfiles").Return("dotfiles")
+		n := NewNamer(mockPathwrap, mockGit, mockHome, config)
+
+		name, err := n.Name(path)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "dotfiles/nvim", name)
+	})
+
+	t.Run("Name uses the dir strategy outside git", func(t *testing.T) {
+		path := "/Users/josh/scratch/notes"
+		mockPathwrap := new(pathwrap.MockPath)
+		mockGit := new(git.MockGit)
+		mockHome := new(home.MockHome)
+		mockPathwrap.On("EvalSymlinks", path).Return(path, nil)
+		mockHome.On("ShortenHome", path).Return("~/scratch/notes", nil)
+		mockGit.On("WorktreeList", path).Return(false, "", fmt.Errorf("not a git repository"))
+		mockPathwrap.On("Base", path).Return("notes")
+		n := NewNamer(mockPathwrap, mockGit, mockHome, config)
+
+		name, err := n.Name(path)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "notes", name)
+	})
+
+	t.Run("RootName uses the git root strategy", func(t *testing.T) {
+		path := "/Users/josh/config/dotfiles/nvim"
+		mockPathwrap := new(pathwrap.MockPath)
+		mockGit := new(git.MockGit)
+		mockHome := new(home.MockHome)
+		mockPathwrap.On("EvalSymlinks", path).Return(path, nil)
+		mockHome.On("ShortenHome", path).Return("~/config/dotfiles/nvim", nil)
+		mockGit.On("WorktreeList", path).Return(true, gitList, nil)
+		mockGit.On("ShowTopLevel", path).Return(true, "/Users/josh/config/dotfiles", nil)
+		mockPathwrap.On("Base", "/Users/josh/config/dotfiles").Return("dotfiles")
+		n := NewNamer(mockPathwrap, mockGit, mockHome, config)
+
+		name, err := n.RootName(path)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "dotfiles", name)
+	})
+}
+
+func TestNameSubstitutionFallsThroughWhenHomeIsUnavailable(t *testing.T) {
+	gitList := `worktree /Users/josh/config/dotfiles
+HEAD abc123
+branch refs/heads/main
+`
+	noHome := fmt.Errorf("$HOME is not defined")
+	config := model.Config{DirLength: 1, NameSubstitutions: stripWorktrees}
+
+	t.Run("Name uses the git strategy", func(t *testing.T) {
+		path := "/Users/josh/config/dotfiles/nvim"
+		mockPathwrap := new(pathwrap.MockPath)
+		mockGit := new(git.MockGit)
+		mockHome := new(home.MockHome)
+		mockPathwrap.On("EvalSymlinks", path).Return(path, nil)
+		mockHome.On("ShortenHome", path).Return("", noHome)
+		mockGit.On("WorktreeList", path).Return(true, gitList, nil)
+		mockPathwrap.On("Base", "/Users/josh/config/dotfiles").Return("dotfiles")
+		n := NewNamer(mockPathwrap, mockGit, mockHome, config)
+
+		name, err := n.Name(path)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "dotfiles/nvim", name)
+	})
+
+	t.Run("Name uses the dir strategy outside git", func(t *testing.T) {
+		path := worktrees + "/nodemicro"
+		mockPathwrap := new(pathwrap.MockPath)
+		mockGit := new(git.MockGit)
+		mockHome := new(home.MockHome)
+		mockPathwrap.On("EvalSymlinks", path).Return(path, nil)
+		mockHome.On("ShortenHome", path).Return("", noHome)
+		mockGit.On("WorktreeList", path).Return(false, "", fmt.Errorf("not a git repository"))
+		mockPathwrap.On("Base", path).Return("nodemicro")
+		n := NewNamer(mockPathwrap, mockGit, mockHome, config)
+
+		name, err := n.Name(path)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "nodemicro", name)
+	})
+
+	t.Run("RootName uses the git root strategy", func(t *testing.T) {
+		path := "/Users/josh/config/dotfiles/nvim"
+		mockPathwrap := new(pathwrap.MockPath)
+		mockGit := new(git.MockGit)
+		mockHome := new(home.MockHome)
+		mockPathwrap.On("EvalSymlinks", path).Return(path, nil)
+		mockHome.On("ShortenHome", path).Return("", noHome)
+		mockGit.On("WorktreeList", path).Return(true, gitList, nil)
+		mockGit.On("ShowTopLevel", path).Return(true, "/Users/josh/config/dotfiles", nil)
+		mockPathwrap.On("Base", "/Users/josh/config/dotfiles").Return("dotfiles")
+		n := NewNamer(mockPathwrap, mockGit, mockHome, config)
+
+		name, err := n.RootName(path)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "dotfiles", name)
+	})
+}
