@@ -3,6 +3,7 @@ package configurator
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/Wingsdh/cc-sesh/v2/model"
@@ -126,11 +127,17 @@ func (c *RealConfigurator) applyDefaults(config *model.Config) {
 
 // validateNameSubstitutions rejects rules that can't be applied so the user
 // hears about a bad rule at load time instead of getting silently ignored
-// naming later. A rule needs something to look for.
+// naming later. A rule needs something to look for, and a regex rule needs a
+// pattern that actually compiles.
 func validateNameSubstitutions(config *model.Config) error {
 	for i, rule := range config.NameSubstitutions {
 		if rule.Find == "" {
 			return fmt.Errorf("name_substitution rule %d has an empty find", i+1)
+		}
+		if rule.Regex {
+			if _, err := regexp.Compile(rule.Find); err != nil {
+				return fmt.Errorf("invalid name_substitution regex %q: %w", rule.Find, err)
+			}
 		}
 	}
 	return nil

@@ -1,19 +1,30 @@
 package namer
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/Wingsdh/cc-sesh/v2/model"
 )
 
 // applySubstitutions runs every rule against name in order, feeding each rule
-// the output of the one before it, and returns the result. Each rule replaces
-// all occurrences of Find with Replace. A rule with an empty Find is skipped:
-// the config loader rejects it up front, so this only guards against
+// the output of the one before it, and returns the result. A literal rule
+// replaces all occurrences of Find; a regex rule replaces every match and may
+// use $1-style references to capture groups. A rule with an empty Find or an
+// invalid regex is skipped so a single bad rule can't break naming outright:
+// the config loader rejects both up front, so this only guards against
 // unexpected input.
 func applySubstitutions(name string, rules []model.NameSubstitution) string {
 	for _, rule := range rules {
 		if rule.Find == "" {
+			continue
+		}
+		if rule.Regex {
+			re, err := regexp.Compile(rule.Find)
+			if err != nil {
+				continue
+			}
+			name = re.ReplaceAllString(name, rule.Replace)
 			continue
 		}
 		name = strings.ReplaceAll(name, rule.Find, rule.Replace)

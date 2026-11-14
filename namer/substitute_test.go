@@ -198,3 +198,142 @@ func TestNameSubstitutionSkipsRuleWithEmptyFind(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "nodemicro", name)
 }
+
+func TestNameAppliesRegexNameSubstitution(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		short    string
+		rule     model.NameSubstitution
+		expected string
+	}{
+		{
+			name:     "replace references a capture group",
+			path:     worktrees + "/12_nodemicro",
+			short:    "~/Workspace/worktrees/12_nodemicro",
+			rule:     model.NameSubstitution{Find: `^~/Workspace/worktrees/[0-9]+_(.*)$`, Replace: "wt-$1", Regex: true},
+			expected: "wt-nodemicro",
+		},
+		{
+			name:     "every match is replaced",
+			path:     "/Users/josh/v1/api2",
+			short:    "~/v1/api2",
+			rule:     model.NameSubstitution{Find: `[0-9]+`, Replace: "N", Regex: true},
+			expected: "~/vN/apiN",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockPathwrap := new(pathwrap.MockPath)
+			mockGit := new(git.MockGit)
+			mockHome := new(home.MockHome)
+			mockPathwrap.On("EvalSymlinks", tt.path).Return(tt.path, nil)
+			mockHome.On("ShortenHome", tt.path).Return(tt.short, nil)
+			rules := []model.NameSubstitution{tt.rule}
+			n := NewNamer(mockPathwrap, mockGit, mockHome, model.Config{DirLength: 1, NameSubstitutions: rules})
+
+			name, err := n.Name(tt.path)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, name)
+			mockGit.AssertNotCalled(t, "WorktreeList", mock.Anything)
+		})
+	}
+}
+
+func TestNameSubstitutionMatchesMetacharactersLiterallyUnlessRegex(t *testing.T) {
+	path := "/Users/josh/c/dotXconfig/nvim"
+	short := "~/c/dotXconfig/nvim"
+
+	t.Run("literal rule leaves the path alone and falls through", func(t *testing.T) {
+		mockPathwrap := new(pathwrap.MockPath)
+		mockGit := new(git.MockGit)
+		mockHome := new(home.MockHome)
+		mockPathwrap.On("EvalSymlinks", path).Return(path, nil)
+		mockHome.On("ShortenHome", path).Return(short, nil)
+		mockGit.On("WorktreeList", path).Return(false, "", fmt.Errorf("not a git repository"))
+		mockPathwrap.On("Base", path).Return("nvim")
+		rules := []model.NameSubstitution{{Find: "~/c/dot.config/", Replace: "cfg-"}}
+		n := NewNamer(mockPathwrap, mockGit, mockHome, model.Config{DirLength: 1, NameSubstitutions: rules})
+
+		name, err := n.Name(path)
+
+		assert.NoError(t, err)
+		// "." only matches a literal dot, so the rule misses and the dir
+		// strategy names the session.
+		assert.Equal(t, "nvim", name)
+	})
+
+	t.Run("regex rule treats the dot as a wildcard", func(t *testing.T) {
+		mockPathwrap := new(pathwrap.MockPath)
+		mockGit := new(git.MockGit)
+		mockHome := new(home.MockHome)
+		mockPathwrap.On("EvalSymlinks", path).Return(path, nil)
+		mockHome.On("ShortenHome", path).Return(short, nil)
+		rules := []model.NameSubstitution{{Find: "~/c/dot.config/", Replace: "cfg-", Regex: true}}
+		n := NewNamer(mockPathwrap, mockGit, mockHome, model.Config{DirLength: 1, NameSubstitutions: rules})
+
+		name, err := n.Name(path)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "cfg-nvim", name)
+		mockGit.AssertNotCalled(t, "WorktreeList", mock.Anything)
+	})
+}
+
+func TestNameSubstitutionMixesRegexAndLiteralRulesInOrder(t *testing.T) {
+	path := worktrees + "/12_nodemicro"
+	short := "~/Workspace/worktrees/12_nodemicro"
+	stripPrefix := model.NameSubstitution{Find: "~/Workspace/worktrees/", Replace: ""}
+	swapTicket := model.NameSubstitution{Find: `^([0-9]+)_(.*)$`, Replace: "$2-$1", Regex: true}
+	tests := []struct {
+		name     string
+		rules    []model.NameSubstitution
+		expected string
+	}{
+		{
+			name:     "literal then regex: the regex sees the stripped path",
+			rules:    []model.NameSubstitution{stripPrefix, swapTicket},
+			expected: "nodemicro-12",
+		},
+		{
+			name:     "regex then literal: the anchored regex misses the full path",
+			rules:    []model.NameSubstitution{swapTicket, stripPrefix},
+			expected: "12_nodemicro",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockPathwrap := new(pathwrap.MockPath)
+			mockGit := new(git.MockGit)
+			mockHome := new(home.MockHome)
+			mockPathwrap.On("EvalSymlinks", path).Return(path, nil)
+			mockHome.On("ShortenHome", path).Return(short, nil)
+			n := NewNamer(mockPathwrap, mockGit, mockHome, model.Config{DirLength: 1, NameSubstitutions: tt.rules})
+
+			name, err := n.Name(path)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, name)
+		})
+	}
+}
+
+func TestNameSubstitutionSkipsRuleWithInvalidRegex(t *testing.T) {
+	path := worktrees + "/nodemicro"
+	mockPathwrap := new(pathwrap.MockPath)
+	mockGit := new(git.MockGit)
+	mockHome := new(home.MockHome)
+	mockPathwrap.On("EvalSymlinks", path).Return(path, nil)
+	mockHome.On("ShortenHome", path).Return("~/Workspace/worktrees/nodemicro", nil)
+	rules := []model.NameSubstitution{
+		{Find: "(unterminated", Replace: "x", Regex: true},
+		{Find: "~/Workspace/worktrees/", Replace: ""},
+	}
+	n := NewNamer(mockPathwrap, mockGit, mockHome, model.Config{DirLength: 1, NameSubstitutions: rules})
+
+	name, err := n.Name(path)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "nodemicro", name)
+}

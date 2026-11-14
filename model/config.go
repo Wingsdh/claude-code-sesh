@@ -29,10 +29,16 @@ type (
 	// naming falls back to those strategies, so an empty or absent
 	// [[name_substitution]] list leaves behavior unchanged.
 	NameSubstitution struct {
-		// Find is the text to look for, matched literally.
+		// Find is the text to look for. By default it is matched literally; set
+		// Regex to treat it as a regular expression instead.
 		Find string `toml:"find"`
-		// Replace is the text every occurrence of Find is replaced with.
+		// Replace is the text every match of Find is replaced with. When Regex
+		// is set it may reference capture groups with $1, $2, and so on.
 		Replace string `toml:"replace"`
+		// Regex interprets Find as a Go regular expression (regexp/syntax)
+		// rather than a literal string. Off by default so a path containing
+		// regex metacharacters such as "." is matched as written.
+		Regex bool `toml:"regex"`
 	}
 
 	DefaultSessionConfig struct {
