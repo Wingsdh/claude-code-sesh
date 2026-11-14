@@ -38,11 +38,11 @@ func (n *RealNamer) Name(path string) (string, error) {
 		return "", err
 	}
 
-	strategies := []func(*RealNamer, string) (string, error){
-		nameSubstitution,
-		gitName,
-		dirName,
+	strategies := []func(*RealNamer, string) (string, error){nameSubstitution}
+	if !n.config.DisableGitNamer {
+		strategies = append(strategies, gitName)
 	}
+	strategies = append(strategies, dirName)
 
 	for _, strategy := range strategies {
 		name, err := strategy(n, path)
@@ -62,11 +62,11 @@ func (n *RealNamer) RootName(path string) (string, error) {
 		return "", err
 	}
 
-	strategies := []func(*RealNamer, string) (string, error){
-		nameSubstitution,
-		gitRootName,
-		dirName,
+	strategies := []func(*RealNamer, string) (string, error){nameSubstitution}
+	if !n.config.DisableGitNamer {
+		strategies = append(strategies, gitRootName)
 	}
+	strategies = append(strategies, dirName)
 
 	for _, strategy := range strategies {
 		name, err := strategy(n, path)

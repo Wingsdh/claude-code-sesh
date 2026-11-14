@@ -13,6 +13,7 @@ type (
 		WildcardConfigs      []WildcardConfig     `toml:"wildcard"`
 		DirLength            int                  `toml:"dir_length"`
 		NameSubstitutions    []NameSubstitution   `toml:"name_substitution"`
+		DisableGitNamer      bool                 `toml:"disable_git_namer"`
 		SeparatorAware       bool                 `toml:"separator_aware"`
 		TmuxCommand          string               `toml:"tmux_command"`
 		TUI                  TUIConfig            `toml:"tui"`
